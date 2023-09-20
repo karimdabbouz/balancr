@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Index{% endblock %}
+
+{% block content %}
+
+<div class="container d-flex flex-column justify-content-center border">
+    <div class="row w-100">
+        <div class="col">
+            <h1 class="text-center">Topic Modeling</h1>
+        </div>
+    </div>
+    <div class="row w-100">
+        <div class="col">
+            <form method="POST" action="/topics">
+                <div class="mb-3">
+                    <label for="startDate" class="form-label">Start Date</label>
+                    <input type="date" class="form-control" id="startDate" name="startDate">
+                </div>
+                <div class="mb-3">
+                    <label for="endDate" class="form-label">End Date</label>
+                    <input type="date" class="form-control" id="endDate" name="endDate">
+                </div>
+                <button type="submit" class="btn btn-dark w-100">Compute Topics</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
