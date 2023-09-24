@@ -14,10 +14,6 @@ class Config:
     SQLALCHEMY_BINDS = os.environ.get('SQLALCHEMY_BINDS')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Redis Config
-    REDIS_URL = os.environ.get('REDIS_URL')
-
-
 class DevConfig(Config):
     ''' Configurations for development '''
     FLASK_ENV  = 'development'

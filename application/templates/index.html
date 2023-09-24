@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Index{% endblock %}
+
+{% block content %}
+
+<div class="container d-flex flex-column justify-content-center">
+    <div class="row mt-3">
+        <div class="col">
+            <h1 class="text-center" style="font-weight: bold">Topic Modeling</h1>
+        </div>
+    </div>
+    <div class="row" style="height: 100px">
+        <!-- spacing -->
+    </div>
+    <div class="row w-50 mx-auto">
+        <div class="col">
+            <form method="POST" action="/topics">
+                <div class="mb-3">
+                    <label for="startDate" class="form-label">Start Date</label>
+                    <input type="date" class="form-control" id="startDate" name="startDate" value="2023-07-14">
+                </div>
+                <div class="mb-3">
+                    <label for="endDate" class="form-label">End Date</label>
+                    <input type="date" class="form-control" id="endDate" name="endDate" value="2023-07-15">
+                </div>
+                <div class="mb-3">
+                    <label for="topic1">Headline</label>
+                    <input type="checkbox" name="keepHeadline" value="headline" id="headline"><br>
+                </div>
+                <div class="mb-3">
+                    <label for="topic1">Teaser</label>
+                    <input type="checkbox" name="keepTeaser" value="teaser" id="teaser"><br>
+                </div>
+                <div class="mb-3">
+                    <label for="topic1">Body</label>
+                    <input type="checkbox" name="keepBody" value="body" id="body"><br>
+                </div>
+                <button type="submit" class="btn btn-dark">Compute Topics</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
