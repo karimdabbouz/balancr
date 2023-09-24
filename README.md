@@ -2,7 +2,7 @@
 
 A simple Flask app that uses BERTopic for topic modeling on German news articles.
 
-I didn't bother building a dedicated frontend. This is just for demonstration. Video is sped up:
+I didn't bother building a dedicated frontend. This is just for demonstration. Video is sped up. Depending on the number of documents (and your machine) this might take a while:
 
 
 
