@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Index{% endblock %}
+
+{% block content %}
+
+<div class="container d-flex flex-column justify-content-center border">
+    <div class="row">
+        <div class="col">
+            <h1 class="text-center">Topics</h1>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            {{ top_topics_plot | safe }}
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            {{ num_docs_per_medium_plots[0] | safe }}
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            {{ num_docs_per_medium_plots[1] | safe }}
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            {{ num_docs_per_medium_plots[2] | safe }}
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            {{ topics_table | safe }}
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}
