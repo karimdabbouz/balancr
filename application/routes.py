@@ -40,10 +40,10 @@ def compute_topics():
     return render_template('topics.html',
                             topics_table=topics_table.to_html(classes='table table-striped table-bordered', escape=False),
                             top_topics_plot=top_topics_plot,
-                            num_docs_per_medium_plots=num_docs_per_medium_plots)
-
-
-#     @app.route('/')
-# def display_plot():
-#     plot_html = generate_plot()  # Call the function that generates the plot
-#     return render_template('plot.html', plot_html=plot_html)
+                            num_docs_per_medium_plots=num_docs_per_medium_plots,
+                            start_date=request.form.getlist('startDate')[0],
+                            end_date=request.form.getlist('endDate')[0],
+                            num_articles_published=len(df),
+                            headline_teaser_body=[keep_headline, keep_teaser, keep_body],
+                            num_articles_used_in_modeling=len(final_docs),
+                            sources=filtered_df['medium'].unique())

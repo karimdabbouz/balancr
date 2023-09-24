@@ -109,7 +109,7 @@ class ProcessTopics():
 
     def visualize_num_docs_per_topic(self):
         self.top_topics['representation'] = [' '.join([x for x in sublist[:5]]) for sublist in self.top_topics['representation']]
-        top_topics_fig = px.bar(self.top_topics, x='representation', y='num_docs')
+        top_topics_fig = px.bar(self.top_topics, x='representation', y='num_docs', color_discrete_sequence=['#3C4856'])
         top_topics_fig.update_layout(title='Zehn wichtigste Themen nach Anzahl Artikel insgesamt')
         return top_topics_fig.to_html(full_html=False)
 
@@ -117,9 +117,8 @@ class ProcessTopics():
         results = []
         for i, row in self.top_topics.iloc[:3].iterrows():
             df = pd.DataFrame(self.num_articles_per_medium[row['topic']].items(), columns=['medium', 'num_articles'])
-            num_articles_per_medium_fig = px.bar(df, x='medium', y='num_articles')
+            num_articles_per_medium_fig = px.bar(df, x='medium', y='num_articles', color_discrete_sequence=['#3C4856'])
             topic_description = ''.join([sublist for sublist in row['representation']])
             num_articles_per_medium_fig.update_layout(title=f'Anzahl Artikel je Medium zum Thema: {topic_description}')
-            # num_articles_per_medium_fig.write_html(f'{row["topic"]}.html', auto_open=True)
             results.append(num_articles_per_medium_fig.to_html(full_html=False))
         return results
