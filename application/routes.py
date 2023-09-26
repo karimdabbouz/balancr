@@ -37,13 +37,16 @@ def compute_topics():
         top_topics_plot = process_topics.visualize_num_docs_per_topic()
         process_topics.compute_num_articles_per_medium()
         num_docs_per_medium_plots = process_topics.visualize_num_docs_per_medium()
-    return render_template('topics.html',
-                            topics_table=topics_table.to_html(classes='table table-striped table-bordered', escape=False),
-                            top_topics_plot=top_topics_plot,
-                            num_docs_per_medium_plots=num_docs_per_medium_plots,
-                            start_date=request.form.getlist('startDate')[0],
-                            end_date=request.form.getlist('endDate')[0],
-                            num_articles_published=len(df),
-                            headline_teaser_body=[keep_headline, keep_teaser, keep_body],
-                            num_articles_used_in_modeling=len(final_docs),
-                            sources=filtered_df['medium'].unique())
+        topic_model.topic_model.save(f'./saved_models/{start_date}_{end_date}-{keep_headline}|{keep_teaser}|{keep_body}.pkl')
+        return render_template('topics.html',
+                                topics_table=topics_table.to_html(classes='table table-striped table-bordered', escape=False),
+                                top_topics_plot=top_topics_plot,
+                                num_docs_per_medium_plots=num_docs_per_medium_plots,
+                                start_date=request.form.getlist('startDate')[0],
+                                end_date=request.form.getlist('endDate')[0],
+                                num_articles_published=len(df),
+                                headline_teaser_body=[keep_headline, keep_teaser, keep_body],
+                                num_articles_used_in_modeling=len(final_docs),
+                                sources=filtered_df['medium'].unique())
+    else:
+        return 'there aren\t any articles in the db for the time span you entered'
