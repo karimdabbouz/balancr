@@ -12,7 +12,7 @@ from bertopic import BERTopic
 from bertopic.representation import KeyBERTInspired, TextGeneration
 from bertopic.vectorizers import ClassTfidfTransformer
 
-
+from vertexai.language_models import TextGenerationModel
 
 class LoadArticles():
     def __init__(self):
@@ -70,7 +70,7 @@ class BERTTopicModeling():
         self.german_stopwords = stopwords.words('german')
         self.vectorizer_model = CountVectorizer(stop_words=self.german_stopwords)
         self.ctfidf_model = ClassTfidfTransformer()
-        self.representation_model = KeyBERTInspired()
+        self.representation_model =  KeyBERTInspired()
         self.topic_model = BERTopic(
             embedding_model=self.embedding_model,
             umap_model=self.umap_model,
@@ -86,13 +86,17 @@ class BERTTopicModeling():
 
 
 class ProcessTopics():
-    def __init__(self, topic_model, docs, docs_df):
+    def __init__(self, topic_model, docs, docs_df, service_account_key):
         self.topic_model = topic_model
         self.docs = docs
         self.docs_df = docs_df
         self.top_topics = pd.DataFrame([{'topic': row['Topic'], 'representation': row['Representation'], 'num_docs': row['Count']} for i, row in self.topic_model.get_topic_info().iloc[1:11].iterrows()])
         self.documents_df = topic_model.get_document_info(docs)
         self.num_articles_per_medium = {}
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = service_account_key
+        self.llm_model = TextGenerationModel.from_pretrained('text-bison')
+        self.topic_labels = []
+        self.topic_summaries = []
 
     def compute_num_articles_per_medium(self):
         media_list = []
@@ -107,6 +111,36 @@ class ProcessTopics():
         self.num_articles_per_medium = media_counts
         return media_counts
 
+    def compute_llm_topic_labels(self):
+        parameters = {
+            'temperature': 0.2, # increase if answers are too generic
+            'max_output_tokens': 200
+        }
+        base_prompt = 'Ich habe Themencluster aus Nachrichtenartikeln modelliert. Der folgende Text ist ein Auszug aus drei Beispielartikeln eines Clusters. Bitte gib mir einen Titel für das Thema, von dem die Artikel handeln. Bitte nenne nur den Titel und nutze maximal 5 Wörter: '
+        for i in range(10):
+            try:
+                articles = [x[:10000] for x in self.topic_model.get_representative_docs(i)]
+                prompt = base_prompt + ' '.join(articles)
+                topic_label = self.llm_model.predict(prompt, **parameters)
+                self.topic_labels.append((i, topic_label))
+            except:
+                continue
+
+    def compute_llm_topic_summaries(self):
+        parameters = {
+            'temperature': 0.2, # increase if answers are too generic
+            'max_output_tokens': 500
+        }
+        base_prompt = 'Worum geht es in folgendem Text? Bitte fasse in wenigen Sätzen zusammen: '
+        for i in range(10):
+            try:
+                articles = [x[:10000] for x in self.topic_model.get_representative_docs(i)]
+                prompt = base_prompt + ' '.join(articles)
+                topic_summary = self.llm_model.predict(prompt, **parameters)
+                self.topic_summaries.append((i, topic_summary))
+            except:
+                continue
+            
     def visualize_num_docs_per_topic(self):
         self.top_topics['representation'] = [' '.join([x for x in sublist[:5]]) for sublist in self.top_topics['representation']]
         top_topics_fig = px.bar(self.top_topics, x='representation', y='num_docs', color_discrete_sequence=['#3C4856'])
@@ -122,3 +156,17 @@ class ProcessTopics():
             num_articles_per_medium_fig.update_layout(title=f'Anzahl Artikel je Medium zum Thema: {topic_description}')
             results.append(num_articles_per_medium_fig.to_html(full_html=False))
         return results
+
+
+def save_results(start_date, end_date, topic_model, keep_headline, keep_teaser, keep_body, process_topics, df):
+    # Create folder
+    if not os.path.exists(f'./modeling_results/{start_date}_{end_date}'):
+        os.mkdir(f'./modeling_results/{start_date}_{end_date}')
+    # Save finished model
+    topic_model.topic_model.save(f'./modeling_results/{start_date}_{end_date}/{start_date}_{end_date}-{keep_headline}|{keep_teaser}|{keep_body}.pkl')
+    # Save original documents df as csv
+    df.to_csv(f'./modeling_results/{start_date}_{end_date}/original_docs.csv')
+    # Save topic labels and topic summaries
+    labels_and_summaries_df = pd.DataFrame(process_topics.topic_labels, columns=['topic', 'label'])
+    labels_and_summaries_df['summary'] = [x[1] for x in process_topics.topic_summaries]
+    labels_and_summaries_df.to_csv(f'./modeling_results/{start_date}_{end_date}/labels_and_summaries.csv')

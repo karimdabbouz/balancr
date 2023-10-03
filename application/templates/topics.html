@@ -29,7 +29,7 @@
         <div class="col">
             sources
         </div>
-    </div>
+    </div>  
     <div class="row mt-3">
         <div class="col">
             from {{ start_date }} to {{ end_date }}
@@ -57,12 +57,42 @@
     </div>
     <div class="row">
         <div class="col">
+            <h1>{{ topic_labels[0][1] }}</h1>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            <p>{{ topic_summaries[0][1] }}</p>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
             {{ num_docs_per_medium_plots[0] | safe }}
         </div>
     </div>
     <div class="row">
         <div class="col">
+            <h1>{{ topic_labels[1][1] }}</h1>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            <p>{{ topic_summaries[1][1] }}</p>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
             {{ num_docs_per_medium_plots[1] | safe }}
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            <h1>{{ topic_labels[2][1] }}</h1>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            <p>{{ topic_summaries[2][1] }}</p>
         </div>
     </div>
     <div class="row">

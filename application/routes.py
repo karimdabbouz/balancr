@@ -1,6 +1,6 @@
 from flask import current_app as app
 from flask import render_template, redirect, url_for, jsonify, request, abort
-from .utils import LoadArticles, FilterArticles, BERTTopicModeling, ProcessTopics
+from .utils import LoadArticles, FilterArticles, BERTTopicModeling, ProcessTopics, save_results
 import datetime, os
 
 
@@ -32,12 +32,15 @@ def compute_topics():
             docs.append(list(filtered_df['body']))
         final_docs = [' '.join(items) for items in zip(*docs)]
         topics, probabilities = topic_model.fit_transform(final_docs)
-        process_topics = ProcessTopics(topic_model.topic_model, final_docs, filtered_df)
+        process_topics = ProcessTopics(topic_model.topic_model, final_docs, filtered_df, './service-account-key.json')
         topics_table = topic_model.topic_model.get_topic_info().drop('Representative_Docs', axis=1).iloc[1:]
         top_topics_plot = process_topics.visualize_num_docs_per_topic()
         process_topics.compute_num_articles_per_medium()
+        process_topics.compute_llm_topic_labels()
+        process_topics.compute_llm_topic_summaries()
         num_docs_per_medium_plots = process_topics.visualize_num_docs_per_medium()
-        topic_model.topic_model.save(f'./saved_models/{start_date}_{end_date}-{keep_headline}|{keep_teaser}|{keep_body}.pkl')
+        # topic_model.topic_model.save(f'./saved_models/{start_date}_{end_date}-{keep_headline}|{keep_teaser}|{keep_body}.pkl')
+        save_results(start_date, end_date, topic_model, keep_headline, keep_teaser, keep_body, process_topics, filtered_df)
         return render_template('topics.html',
                                 topics_table=topics_table.to_html(classes='table table-striped table-bordered', escape=False),
                                 top_topics_plot=top_topics_plot,
@@ -47,6 +50,8 @@ def compute_topics():
                                 num_articles_published=len(df),
                                 headline_teaser_body=[keep_headline, keep_teaser, keep_body],
                                 num_articles_used_in_modeling=len(final_docs),
-                                sources=filtered_df['medium'].unique())
+                                sources=filtered_df['medium'].unique(),
+                                topic_labels=process_topics.topic_labels,
+                                topic_summaries=process_topics.topic_summaries)
     else:
-        return 'there aren\t any articles in the db for the time span you entered'
+        return 'there arent any articles in the db for the time span you entered'
