@@ -20,7 +20,6 @@ class LoadArticles():
         self.metadata = MetaData()
         self.tables = inspect(self.engine).get_table_names()
 
-
     def load_articles(self, start_date, end_date):
         articles = []
         for table in self.tables:
@@ -30,6 +29,14 @@ class LoadArticles():
                 response = connection.execute(query)
                 articles.extend(response)
         return pd.DataFrame(articles)
+
+    def get_articles_for_ids(self, tablename, id_list):
+        articles = []
+        table_data = Table(tablename, self.metadata, autoload_with=self.engine)
+        query = select(table_data).where(table_data.c.id.in_(id_list))
+        with self.engine.connect() as connection:
+            response = connection.execute(query)
+        return response.fetchall()
 
 
 class FilterArticles():
@@ -91,12 +98,12 @@ class ProcessTopics():
         self.docs = docs
         self.docs_df = docs_df
         self.top_topics = pd.DataFrame([{'topic': row['Topic'], 'representation': row['Representation'], 'num_docs': row['Count']} for i, row in self.topic_model.get_topic_info().iloc[1:11].iterrows()])
-        self.documents_df = topic_model.get_document_info(docs)
+        self.documents_df = topic_model.get_document_info(docs, df=docs_df)
         self.num_articles_per_medium = {}
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = service_account_key
         self.llm_model = TextGenerationModel.from_pretrained('text-bison')
-        self.topic_labels = []
-        self.topic_summaries = []
+        self.topic_labels = [(0, 'foo')]
+        self.topic_summaries = [(0, 'foo')]
 
     def compute_num_articles_per_medium(self):
         media_list = []
@@ -117,14 +124,16 @@ class ProcessTopics():
             'max_output_tokens': 200
         }
         base_prompt = 'Ich habe Themencluster aus Nachrichtenartikeln modelliert. Der folgende Text ist ein Auszug aus drei Beispielartikeln eines Clusters. Bitte gib mir einen Titel für das Thema, von dem die Artikel handeln. Bitte nenne nur den Titel und nutze maximal 5 Wörter: '
+        labels = []
         for i in range(10):
             try:
                 articles = [x[:10000] for x in self.topic_model.get_representative_docs(i)]
                 prompt = base_prompt + ' '.join(articles)
                 topic_label = self.llm_model.predict(prompt, **parameters)
-                self.topic_labels.append((i, topic_label))
+                labels.append((i, topic_label))
             except:
-                continue
+                summaries.append((i, 'foo'))
+        self.topic_labels = labels
 
     def compute_llm_topic_summaries(self):
         parameters = {
@@ -132,14 +141,30 @@ class ProcessTopics():
             'max_output_tokens': 500
         }
         base_prompt = 'Worum geht es in folgendem Text? Bitte fasse in wenigen Sätzen zusammen: '
+        summaries = []
         for i in range(10):
             try:
                 articles = [x[:10000] for x in self.topic_model.get_representative_docs(i)]
                 prompt = base_prompt + ' '.join(articles)
                 topic_summary = self.llm_model.predict(prompt, **parameters)
-                self.topic_summaries.append((i, topic_summary))
+                summaries.append((i, topic_summary))
             except:
-                continue
+                summaries.append((i, 'foo'))
+        self.topic_summaries = summaries
+
+    def build_article_data(self):
+        result_dict = {}
+        for i in range(10):
+            articles_list = []
+            articles = self.documents_df[self.documents_df['Topic'] == i].sort_values(by='Probability', ascending=False).iloc[:30]
+            for index, row in articles.iterrows():
+                data = {
+                    'id': row['id'],
+                    'medium': row['medium']
+                    }
+                articles_list.append(data)
+            result_dict[i] = articles_list
+        return result_dict
             
     def visualize_num_docs_per_topic(self):
         self.top_topics['representation'] = [' '.join([x for x in sublist[:5]]) for sublist in self.top_topics['representation']]
@@ -159,14 +184,24 @@ class ProcessTopics():
 
 
 def save_results(start_date, end_date, topic_model, keep_headline, keep_teaser, keep_body, process_topics, df):
-    # Create folder
-    if not os.path.exists(f'./modeling_results/{start_date}_{end_date}'):
-        os.mkdir(f'./modeling_results/{start_date}_{end_date}')
-    # Save finished model
-    topic_model.topic_model.save(f'./modeling_results/{start_date}_{end_date}/{start_date}_{end_date}-{keep_headline}|{keep_teaser}|{keep_body}.pkl')
-    # Save original documents df as csv
-    df.to_csv(f'./modeling_results/{start_date}_{end_date}/original_docs.csv')
-    # Save topic labels and topic summaries
+    if not os.path.exists(f'./modeling_results/{start_date}_{end_date}_{keep_headline}_{keep_teaser}_{keep_body}'):
+        os.mkdir(f'./modeling_results/{start_date}_{end_date}_{keep_headline}_{keep_teaser}_{keep_body}')
+    topic_model.topic_model.save(f'./modeling_results/{start_date}_{end_date}_{keep_headline}_{keep_teaser}_{keep_body}/{start_date}_{end_date}-{keep_headline}|{keep_teaser}|{keep_body}.pkl')
+    df.to_csv(f'./modeling_results/{start_date}_{end_date}_{keep_headline}_{keep_teaser}_{keep_body}/original_docs.csv')
     labels_and_summaries_df = pd.DataFrame(process_topics.topic_labels, columns=['topic', 'label'])
     labels_and_summaries_df['summary'] = [x[1] for x in process_topics.topic_summaries]
-    labels_and_summaries_df.to_csv(f'./modeling_results/{start_date}_{end_date}/labels_and_summaries.csv')
+    labels_and_summaries_df.to_csv(f'./modeling_results/{start_date}_{end_date}_{keep_headline}_{keep_teaser}_{keep_body}/labels_and_summaries.csv')
+
+
+def load_results(start_date, end_date, keep_headline, keep_teaser, keep_body):
+    directory = f'./modeling_results/{start_date}_{end_date}_{keep_headline}_{keep_teaser}_{keep_body}'
+    current_directory = os.getcwd()
+    try:
+        labels_and_summaries_df = pd.read_csv(f'{directory}/labels_and_summaries.csv', index_col=0)
+        original_docs = pd.read_csv(f'{directory}/original_docs.csv', index_col=0)
+        os.chdir(directory)
+        topic_model = BERTopic.load(f'./{start_date}_{end_date}-{keep_headline}|{keep_teaser}|{keep_body}.pkl')
+        os.chdir(current_directory)
+        return original_docs, labels_and_summaries_df, topic_model
+    except:
+        raise Exception('no model for this time frame')
