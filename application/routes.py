@@ -35,6 +35,7 @@ def topic_page(topic_id):
 def compute_topics():
     start_date = datetime.datetime.strptime(request.form.getlist('startDate')[0], '%Y-%m-%d').date()
     end_date = datetime.datetime.strptime(request.form.getlist('endDate')[0], '%Y-%m-%d').date()
+    keep_kicker = True if len(request.form.getlist('keepKicker')) > 0 else False
     keep_headline = True if len(request.form.getlist('keepHeadline')) > 0 else False
     keep_teaser = True if len(request.form.getlist('keepTeaser')) > 0 else False
     keep_body = True if len(request.form.getlist('keepBody')) > 0 else False
@@ -42,8 +43,10 @@ def compute_topics():
     all_articles_df = load_articles.load_articles(start_date, end_date)
     try:
         # try loading existing model
-        filtered_df, labels_and_summaries_df, topic_model = load_results(start_date, end_date, keep_headline, keep_teaser, keep_body)
+        filtered_df, labels_and_summaries_df, topic_model = load_results(start_date, end_date, keep_kicker, keep_headline, keep_teaser, keep_body)
         docs = []
+        if keep_kicker == True:
+            docs.append(list(filtered_df['kicker']))
         if keep_headline == True:
             docs.append(list(filtered_df['headline']))
         if keep_teaser == True:
@@ -65,7 +68,7 @@ def compute_topics():
                         start_date=request.form.getlist('startDate')[0],
                         end_date=request.form.getlist('endDate')[0],
                         num_articles_published=len(all_articles_df),
-                        headline_teaser_body=[keep_headline, keep_teaser, keep_body],
+                        headline_teaser_body=[keep_kicker, keep_headline, keep_teaser, keep_body],
                         num_articles_used_in_modeling=len(final_docs),
                         sources=filtered_df['medium'].unique(),
                         # topic_labels=[(i, row['label']) for i, row in labels_and_summaries_df.iloc[:3].iterrows()],
@@ -76,9 +79,11 @@ def compute_topics():
         # train model
         print('retraining')
         if len(all_articles_df) > 0:
-            filter_articles = FilterArticles(keep_headline, keep_teaser, keep_body)
+            filter_articles = FilterArticles(keep_kicker, keep_headline, keep_teaser, keep_body)
             filtered_df = filter_articles.filter_articles(all_articles_df)
             docs = []
+            if keep_kicker == True:
+                docs.append(list(filtered_df['kicker']))
             if keep_headline == True:
                 docs.append(list(filtered_df['headline']))
             if keep_teaser == True:
@@ -95,7 +100,7 @@ def compute_topics():
             process_topics.compute_llm_topic_labels()
             process_topics.compute_llm_topic_summaries()
             num_docs_per_medium_plots = process_topics.visualize_num_docs_per_medium()
-            save_results(start_date, end_date, topic_model, keep_headline, keep_teaser, keep_body, process_topics, filtered_df)
+            save_results(start_date, end_date, topic_model, keep_kicker, keep_headline, keep_teaser, keep_body, process_topics, filtered_df)
             session_data = process_topics.build_article_data()
             session['articles'] = session_data     
             return render_template('topics_overview.html',
@@ -105,7 +110,7 @@ def compute_topics():
                                     start_date=request.form.getlist('startDate')[0],
                                     end_date=request.form.getlist('endDate')[0],
                                     num_articles_published=len(all_articles_df),
-                                    headline_teaser_body=[keep_headline, keep_teaser, keep_body],
+                                    headline_teaser_body=[keep_kicker, keep_headline, keep_teaser, keep_body],
                                     num_articles_used_in_modeling=len(final_docs),
                                     sources=filtered_df['medium'].unique(),
                                     topic_labels=process_topics.topic_labels,
