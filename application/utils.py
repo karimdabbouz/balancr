@@ -12,7 +12,9 @@ from bertopic import BERTopic
 from bertopic.representation import KeyBERTInspired, TextGeneration
 from bertopic.vectorizers import ClassTfidfTransformer
 
+from google.cloud import aiplatform
 from vertexai.language_models import TextGenerationModel
+
 
 class LoadArticles():
     def __init__(self):
@@ -98,14 +100,15 @@ class BERTTopicModeling():
 
 
 class ProcessTopics():
-    def __init__(self, topic_model, docs, docs_df, service_account_key):
+    def __init__(self, topic_model, docs, docs_df, google_project_id):
         self.topic_model = topic_model
         self.docs = docs
         self.docs_df = docs_df
         self.top_topics = pd.DataFrame([{'topic': row['Topic'], 'representation': row['Representation'], 'num_docs': row['Count']} for i, row in self.topic_model.get_topic_info().iloc[1:11].iterrows()])
         self.documents_df = topic_model.get_document_info(docs, df=docs_df)
         self.num_articles_per_medium = {}
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = service_account_key
+        self.google_project_id = google_project_id
+        aiplatform.init(project=google_project_id)
         self.llm_model = TextGenerationModel.from_pretrained('text-bison')
         self.topic_labels = [(0, 'foo')]
         self.topic_summaries = [(0, 'foo')]
@@ -135,9 +138,12 @@ class ProcessTopics():
                 articles = [x[:10000] for x in self.topic_model.get_representative_docs(i)]
                 prompt = base_prompt + ' '.join(articles)
                 topic_label = self.llm_model.predict(prompt, **parameters)
-                labels.append((i, topic_label))
+                if topic_label.text != '':
+                    labels.append((i, topic_label.text))
+                else:
+                    labels.append((i, self.top_topics[i]['representation']))
             except:
-                summaries.append((i, 'foo'))
+                labels.append((i, 'foo'))
         self.topic_labels = labels
 
     def compute_llm_topic_summaries(self):
@@ -152,7 +158,10 @@ class ProcessTopics():
                 articles = [x[:10000] for x in self.topic_model.get_representative_docs(i)]
                 prompt = base_prompt + ' '.join(articles)
                 topic_summary = self.llm_model.predict(prompt, **parameters)
-                summaries.append((i, topic_summary))
+                if topic_summary.text != '':
+                    summaries.append((i, topic_summary.text))
+                else:
+                    summaries.append((i, self.top_topics[i]['representation']))
             except:
                 summaries.append((i, 'foo'))
         self.topic_summaries = summaries
@@ -161,7 +170,7 @@ class ProcessTopics():
         result_dict = {}
         for i in range(10):
             articles_list = []
-            articles = self.documents_df[self.documents_df['Topic'] == i].sort_values(by='Probability', ascending=False).iloc[:30]
+            articles = self.documents_df[self.documents_df['Topic'] == i].sort_values(by='Probability', ascending=False)
             for index, row in articles.iterrows():
                 data = {
                     'id': row['id'],
@@ -191,7 +200,7 @@ class ProcessTopics():
 def save_results(start_date, end_date, topic_model, keep_kicker, keep_headline, keep_teaser, keep_body, process_topics, df):
     if not os.path.exists(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}'):
         os.mkdir(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}')
-    topic_model.topic_model.save(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}/{start_date}_{end_date}-{keep_headline}|{keep_teaser}|{keep_body}.pkl')
+    topic_model.topic_model.save(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}/{start_date}_{end_date}-{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}.pkl')
     df.to_csv(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}/original_docs.csv')
     labels_and_summaries_df = pd.DataFrame(process_topics.topic_labels, columns=['topic', 'label'])
     labels_and_summaries_df['summary'] = [x[1] for x in process_topics.topic_summaries]
