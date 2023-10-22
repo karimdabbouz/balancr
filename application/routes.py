@@ -75,7 +75,7 @@ def compute_topics():
                         sources=filtered_df['medium'].unique(),
                         topic_labels=[(i, row['label']) for i, row in labels_and_summaries_df.iloc[:3].iterrows()],
                         topic_summaries=[(i, row['summary']) for i, row in labels_and_summaries_df.iloc[:3].iterrows()])
-    except:
+    except Exception as e:
         # train model
         print('retraining')
         if len(all_articles_df) > 0:
@@ -100,7 +100,7 @@ def compute_topics():
             process_topics.compute_llm_topic_labels()
             process_topics.compute_llm_topic_summaries()
             num_docs_per_medium_plots = process_topics.visualize_num_docs_per_medium()
-            save_results(start_date, end_date, topic_model, keep_kicker, keep_headline, keep_teaser, keep_body, process_topics, process_topics.documents_df)
+            save_results(start_date, end_date, topic_model, keep_kicker, keep_headline, keep_teaser, keep_body, process_topics)
             session_data = process_topics.build_article_data()
             session['articles'] = session_data
             return render_template('topics_overview.html',

@@ -1,4 +1,4 @@
-import os
+import os, uuid, shutil
 from sqlalchemy import create_engine, MetaData, Table, select, inspect, and_
 import pandas as pd
 import plotly.express as px
@@ -12,7 +12,7 @@ from bertopic import BERTopic
 from bertopic.representation import KeyBERTInspired, TextGeneration
 from bertopic.vectorizers import ClassTfidfTransformer
 
-from google.cloud import aiplatform
+from google.cloud import aiplatform, storage
 from vertexai.language_models import TextGenerationModel
 
 
@@ -138,11 +138,14 @@ class ProcessTopics():
                 articles = [x[:10000] for x in self.topic_model.get_representative_docs(i)]
                 prompt = base_prompt + ' '.join(articles)
                 topic_label = self.llm_model.predict(prompt, **parameters)
-                if topic_label.text != '':
-                    labels.append((i, topic_label.text))
-                else:
-                    labels.append((i, self.top_topics[i]['representation']))
-            except:
+                labels.append((i, topic_label.text))
+                print(i, topic_label)
+                # if topic_label.text != '':
+                #     labels.append((i, topic_label.text))
+                # else:
+                #     labels.append((i, self.top_topics[i]['representation']))
+            except Exception as e:
+                print(f'Exception from compute_llm_topic_labels(): {e}')
                 labels.append((i, 'foo'))
         self.topic_labels = labels
 
@@ -158,11 +161,14 @@ class ProcessTopics():
                 articles = [x[:10000] for x in self.topic_model.get_representative_docs(i)]
                 prompt = base_prompt + ' '.join(articles)
                 topic_summary = self.llm_model.predict(prompt, **parameters)
-                if topic_summary.text != '':
-                    summaries.append((i, topic_summary.text))
-                else:
-                    summaries.append((i, self.top_topics[i]['representation']))
-            except:
+                summaries.append((i, topic_summary.text))
+                print(i, topic_summary)
+                # if topic_summary.text != '':
+                #     summaries.append((i, topic_summary.text))
+                # else:
+                #     summaries.append((i, self.top_topics[i]['representation']))
+            except Exception as e:
+                print(f'Exception from compute_llm_topic_summaries(): {e}')
                 summaries.append((i, 'foo'))
         self.topic_summaries = summaries
 
@@ -197,25 +203,65 @@ class ProcessTopics():
         return results
 
 
-def save_results(start_date, end_date, topic_model, keep_kicker, keep_headline, keep_teaser, keep_body, process_topics, df):
-    if not os.path.exists(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}'):
-        os.mkdir(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}')
-    topic_model.topic_model.save(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}/{start_date}_{end_date}-{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}.pkl')
-    df.to_csv(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}/original_docs.csv')
+# def save_results(start_date, end_date, topic_model, keep_kicker, keep_headline, keep_teaser, keep_body, process_topics, df):
+#     if not os.path.exists(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}'):
+#         os.mkdir(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}')
+#     topic_model.topic_model.save(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}/{start_date}_{end_date}-{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}.pkl')
+#     df.to_csv(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}/original_docs.csv')
+#     labels_and_summaries_df = pd.DataFrame(process_topics.topic_labels, columns=['topic', 'label'])
+#     labels_and_summaries_df['summary'] = [x[1] for x in process_topics.topic_summaries]
+#     labels_and_summaries_df.to_csv(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}/labels_and_summaries.csv')
+
+
+def save_results(start_date, end_date, topic_model, keep_kicker, keep_headline, keep_teaser, keep_body, process_topics):
+    unique_key = str(uuid.uuid4())
+    client = storage.Client(project='protean-unity-398412')
+    bucket = client.get_bucket('balancr-models-bucket')
+    topic_model.topic_model.save(f'./modeling_results/{unique_key}_model', serialization='safetensors', save_ctfidf=False)
+    blob = bucket.blob(f'modeling_results/{start_date}_{end_date}_{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}/model/config.json')
+    blob.upload_from_filename(f'./modeling_results/{unique_key}_model/config.json')
+    blob = bucket.blob(f'modeling_results/{start_date}_{end_date}_{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}/model/topics.json')
+    blob.upload_from_filename(f'./modeling_results/{unique_key}_model/topics.json')
+    blob = bucket.blob(f'modeling_results/{start_date}_{end_date}_{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}/model/topic_embeddings.safetensors')
+    blob.upload_from_filename(f'./modeling_results/{unique_key}_model/topic_embeddings.safetensors')
+    process_topics.documents_df.to_parquet(f'gs://balancr-models-bucket/modeling_results/{start_date}_{end_date}_{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}/docs.parquet')
     labels_and_summaries_df = pd.DataFrame(process_topics.topic_labels, columns=['topic', 'label'])
     labels_and_summaries_df['summary'] = [x[1] for x in process_topics.topic_summaries]
-    labels_and_summaries_df.to_csv(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}/labels_and_summaries.csv')
+    labels_and_summaries_df.to_parquet(f'gs://balancr-models-bucket/modeling_results/{start_date}_{end_date}_{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}/labels_and_summaries.parquet')
+    shutil.rmtree(f'./modeling_results/{unique_key}_model')
+
+
+# def load_results(start_date, end_date, keep_kicker, keep_headline, keep_teaser, keep_body):
+#     directory = f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}'
+#     current_directory = os.getcwd()
+#     try:
+#         labels_and_summaries_df = pd.read_csv(f'{directory}/labels_and_summaries.csv', index_col=0)
+#         original_docs = pd.read_csv(f'{directory}/original_docs.csv', index_col=0)
+#         os.chdir(directory)
+#         topic_model = BERTopic.load(f'./{start_date}_{end_date}-{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}.pkl')
+#         os.chdir(current_directory)
+#         return original_docs, labels_and_summaries_df, topic_model
+#     except:
+#         raise Exception('no model for this time frame')
 
 
 def load_results(start_date, end_date, keep_kicker, keep_headline, keep_teaser, keep_body):
-    directory = f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}'
-    current_directory = os.getcwd()
+    unique_key = str(uuid.uuid4())
+    os.mkdir(f'./modeling_results/{unique_key}_model_tmp')
     try:
-        labels_and_summaries_df = pd.read_csv(f'{directory}/labels_and_summaries.csv', index_col=0)
-        original_docs = pd.read_csv(f'{directory}/original_docs.csv', index_col=0)
-        os.chdir(directory)
-        topic_model = BERTopic.load(f'./{start_date}_{end_date}-{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}.pkl')
-        os.chdir(current_directory)
-        return original_docs, labels_and_summaries_df, topic_model
-    except:
+        client = storage.Client(project='protean-unity-398412')
+        bucket = client.get_bucket('balancr-models-bucket')
+        blob = bucket.blob(f'modeling_results/{start_date}_{end_date}_{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}/model/config.json')
+        blob.download_to_filename(f'./modeling_results/{unique_key}_model_tmp/config.json')
+        blob = bucket.blob(f'modeling_results/{start_date}_{end_date}_{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}/model/topics.json')
+        blob.download_to_filename(f'./modeling_results/{unique_key}_model_tmp/topics.json')
+        blob = bucket.blob(f'modeling_results/{start_date}_{end_date}_{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}/model/topic_embeddings.safetensors')
+        blob.download_to_filename(f'./modeling_results/{unique_key}_model_tmp/topic_embeddings.safetensors')
+        model = BERTopic.load(f'./modeling_results/{unique_key}_model_tmp')
+        shutil.rmtree(f'./modeling_results/{unique_key}_model_tmp')
+        docs = pd.read_parquet(f'gs://balancr-models-bucket/modeling_results/{start_date}_{end_date}_{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}/docs.parquet')
+        labels_and_summaries_df = pd.read_parquet(f'gs://balancr-models-bucket/modeling_results/{start_date}_{end_date}_{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}/labels_and_summaries.parquet')
+        return docs, labels_and_summaries_df, model
+    except Exception as e:
+        shutil.rmtree(f'./modeling_results/{unique_key}_model_tmp')
         raise Exception('no model for this time frame')
