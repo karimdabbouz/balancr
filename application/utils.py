@@ -42,11 +42,12 @@ class LoadArticles():
 
 
 class FilterArticles():
-    def __init__(self, kicker, headline, teaser, body):
+    def __init__(self, kicker, headline, teaser, body, medium_list):
         self.kicker = kicker
         self.headline = headline
         self.teaser = teaser
         self.body = body
+        self.medium_list = medium_list
 
     def filter_articles(self, df):
         common_indices = []
@@ -72,8 +73,7 @@ class FilterArticles():
             result_df = df.iloc[common_indices]
             result_df['full_content'] = result_df['kicker'] + ' ' + result_df['headline'] + ' ' + result_df['teaser'] + ' ' + result_df['body']
 
-        result_df = df.iloc[common_indices]
-        return result_df
+        return result_df[result_df['medium'].isin(self.medium_list)]
 
 
 class BERTTopicModeling():
@@ -203,16 +203,6 @@ class ProcessTopics():
         return results
 
 
-# def save_results(start_date, end_date, topic_model, keep_kicker, keep_headline, keep_teaser, keep_body, process_topics, df):
-#     if not os.path.exists(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}'):
-#         os.mkdir(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}')
-#     topic_model.topic_model.save(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}/{start_date}_{end_date}-{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}.pkl')
-#     df.to_csv(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}/original_docs.csv')
-#     labels_and_summaries_df = pd.DataFrame(process_topics.topic_labels, columns=['topic', 'label'])
-#     labels_and_summaries_df['summary'] = [x[1] for x in process_topics.topic_summaries]
-#     labels_and_summaries_df.to_csv(f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}/labels_and_summaries.csv')
-
-
 def save_results(start_date, end_date, topic_model, keep_kicker, keep_headline, keep_teaser, keep_body, process_topics):
     unique_key = str(uuid.uuid4())
     client = storage.Client(project='protean-unity-398412')
@@ -229,20 +219,6 @@ def save_results(start_date, end_date, topic_model, keep_kicker, keep_headline, 
     labels_and_summaries_df['summary'] = [x[1] for x in process_topics.topic_summaries]
     labels_and_summaries_df.to_parquet(f'gs://balancr-models-bucket/modeling_results/{start_date}_{end_date}_{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}/labels_and_summaries.parquet')
     shutil.rmtree(f'./modeling_results/{unique_key}_model')
-
-
-# def load_results(start_date, end_date, keep_kicker, keep_headline, keep_teaser, keep_body):
-#     directory = f'./modeling_results/{start_date}_{end_date}_{keep_kicker}_{keep_headline}_{keep_teaser}_{keep_body}'
-#     current_directory = os.getcwd()
-#     try:
-#         labels_and_summaries_df = pd.read_csv(f'{directory}/labels_and_summaries.csv', index_col=0)
-#         original_docs = pd.read_csv(f'{directory}/original_docs.csv', index_col=0)
-#         os.chdir(directory)
-#         topic_model = BERTopic.load(f'./{start_date}_{end_date}-{keep_kicker}|{keep_headline}|{keep_teaser}|{keep_body}.pkl')
-#         os.chdir(current_directory)
-#         return original_docs, labels_and_summaries_df, topic_model
-#     except:
-#         raise Exception('no model for this time frame')
 
 
 def load_results(start_date, end_date, keep_kicker, keep_headline, keep_teaser, keep_body):

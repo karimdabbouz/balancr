@@ -79,7 +79,7 @@ def compute_topics():
         # train model
         print('retraining')
         if len(all_articles_df) > 0:
-            filter_articles = FilterArticles(keep_kicker, keep_headline, keep_teaser, keep_body)
+            filter_articles = FilterArticles(keep_kicker, keep_headline, keep_teaser, keep_body, ['faz', 'zeit', 'welt', 'tagesschau', 'sueddeutsche'])
             filtered_df = filter_articles.filter_articles(all_articles_df)
             docs = []
             if keep_kicker == True:
