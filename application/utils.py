@@ -98,6 +98,11 @@ class BERTTopicModeling():
         topics, probabilities = self.topic_model.fit_transform(docs)
         return topics, probabilities
 
+    def transform(self, baseline_model_path, docs):
+        base_model = BERTopic.load(baseline_model_path)
+        topics, probabilities = base_model.transform(docs)
+        return topics, probabilities
+
 
 class ProcessTopics():
     def __init__(self, topic_model, docs, docs_df, google_project_id):
