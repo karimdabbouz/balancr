@@ -1,8 +1,8 @@
-from application import init_app
+from application import create_app
 
 
 
-app = init_app()
+app = create_app()
 
 
 

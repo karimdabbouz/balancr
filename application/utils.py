@@ -1,5 +1,5 @@
-import os, uuid, shutil
-from sqlalchemy import create_engine, MetaData, Table, select, inspect, and_
+import os, uuid, shutil, datetime, json
+from sqlalchemy import create_engine, MetaData, Table, select, inspect, and_, or_
 import pandas as pd
 import plotly.express as px
 
@@ -22,11 +22,17 @@ class LoadArticles():
         self.metadata = MetaData()
         self.tables = inspect(self.engine).get_table_names()
 
-    def load_articles(self, start_date, end_date):
+    def load_articles(self, start_date, end_date, include_paywalled):
         articles = []
         for table in self.tables:
             table_data = Table(table, self.metadata, autoload_with=self.engine)
-            query = select(table_data).where(and_(table_data.c.date_published >= start_date, table_data.c.date_published <= end_date))
+            condition1 = table_data.c.date_published >= start_date
+            condition2 = table_data.c.date_published <= end_date
+            if include_paywalled == True:
+                condition3 = or_(table_data.c.paywall == True, table_data.c.paywall == False)
+            else:
+                condition3 = table_data.c.paywall == False
+            query = select(table_data).where(and_(condition1, condition2, condition3))
             with self.engine.connect() as connection:
                 response = connection.execute(query)
                 articles.extend(response)
@@ -246,3 +252,73 @@ def load_results(start_date, end_date, keep_kicker, keep_headline, keep_teaser, 
     except Exception as e:
         shutil.rmtree(f'./modeling_results/{unique_key}_model_tmp')
         raise Exception('no model for this time frame')
+
+
+def format_prediction_data(topics, probabilities, df, metadata):
+    articles = []
+    for i, v in enumerate(topics):
+        prediction = {
+            'article_id': int(df.iloc[i]['id']),
+            'source': df.iloc[i]['medium'],
+            'topic': int(v),
+            'probability': float(probabilities[i])
+        }
+        articles.append(prediction)
+    predictions = {
+        'articles': articles,
+        'metadata': metadata
+    }
+    return predictions
+
+
+def save_predictions(topics, probabilities, filtered_df, baseline_model, start_date, end_date, keep_kicker, keep_headline, keep_teaser, keep_body, include_paywalled, sources):
+    filename = str(uuid.uuid4())
+    client = storage.Client(project='protean-unity-398412')
+    bucket = client.get_bucket('balancr-models-bucket')
+    blobs = client.list_blobs('balancr-models-bucket', prefix='modeling_results/predictions')
+    sources.sort()
+    metadata = {
+        'baseline_model': baseline_model,
+        'start_date': datetime.datetime.strftime(start_date, '%Y-%m-%d'),
+        'end_date': datetime.datetime.strftime(end_date, '%Y-%m-%d'),
+        'sources': ','.join(sources),
+        'keep_kicker': str(keep_kicker),
+        'keep_headline': str(keep_headline),
+        'keep_teaser': str(keep_teaser),
+        'keep_body': str(keep_body),
+        'include_paywalled': str(include_paywalled)
+    }
+    for blob in blobs:
+        if metadata == blob.metadata:
+            raise Exception('Predictions for these articles already exist')
+        else: 
+            predictions = format_prediction_data(topics, probabilities, filtered_df, metadata)
+            json_predictions = json.dumps(predictions)
+            blob = bucket.blob(f'modeling_results/predictions/{filename}.json')
+            blob.metadata = metadata
+            blob.upload_from_string(json_predictions, content_type="application/json")
+            return predictions
+
+
+def load_predictions(baseline_model, start_date, end_date, keep_kicker, keep_headline, keep_teaser, keep_body, include_paywalled, sources):
+    client = storage.Client(project='protean-unity-398412')
+    blobs = client.list_blobs('balancr-models-bucket', prefix='modeling_results/predictions')
+    sources.sort()
+    metadata = {
+        'baseline_model': baseline_model,
+        'start_date': datetime.datetime.strftime(start_date, '%Y-%m-%d'),
+        'end_date': datetime.datetime.strftime(end_date, '%Y-%m-%d'),
+        'sources': ','.join(sources),
+        'keep_kicker': str(keep_kicker),
+        'keep_headline': str(keep_headline),
+        'keep_teaser': str(keep_teaser),
+        'keep_body': str(keep_body),
+        'include_paywalled': str(include_paywalled)
+    }
+    for blob in blobs:
+        if metadata == blob.metadata:
+            result = json.loads(blob.download_as_text())
+            return result
+    raise Exception('no predictions with these parameters')
+
+

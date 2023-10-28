@@ -41,7 +41,7 @@ def compute_topics():
     keep_teaser = True if len(request.form.getlist('keepTeaser')) > 0 else False
     keep_body = True if len(request.form.getlist('keepBody')) > 0 else False
     load_articles = LoadArticles()
-    all_articles_df = load_articles.load_articles(start_date, end_date)
+    all_articles_df = load_articles.load_articles(start_date, end_date, True) # True stands for also including paywalled articles
     try:
         # try loading existing model
         filtered_df, labels_and_summaries_df, topic_model = load_results(start_date, end_date, keep_kicker, keep_headline, keep_teaser, keep_body)
