@@ -44,7 +44,8 @@ class LoadArticles():
         query = select(table_data).where(table_data.c.id.in_(id_list))
         with self.engine.connect() as connection:
             response = connection.execute(query)
-        return response.fetchall()
+            articles = response.fetchall()
+        return articles
 
 
 class FilterArticles():
