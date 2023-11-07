@@ -11,6 +11,8 @@ def create_app():
 
     baseline_model_name = 'baseline_model_2023-10-24.pkl'
     app.config['baseline_model_name'] = baseline_model_name
+    baseline_model_data = 'baseline_model_data_2023-10-24.json'
+    app.config['baseline_model_data'] = baseline_model_data
     
     model = BERTopic.load(f'./modeling_results/{baseline_model_name}')
     app.config['model'] = model

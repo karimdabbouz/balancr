@@ -1,11 +1,14 @@
 from flask import current_app as app
 from flask import request, jsonify
-import datetime
+from flask_cors import cross_origin
+import datetime, json, itertools
 from .utils import LoadArticles, BERTTopicModeling, FilterArticles, load_predictions, save_predictions
 
 
-@app.route('/get_topics_overview', methods=['GET'])
-def get_topics_overview():
+@app.route('/get_topic_predictions', methods=['GET'])
+@cross_origin(origins=['http://localhost:8080'], methods=['GET'])
+def get_topic_predictions():
+    print("get_topic_predictions() was called")
     start_date = datetime.datetime.strptime(request.args.get('start_date'), '%Y-%m-%d').date()
     end_date = datetime.datetime.strptime(request.args.get('end_date'), '%Y-%m-%d').date()
     parts_of_article = request.args.get('parts_of_article')
@@ -29,6 +32,7 @@ def get_topics_overview():
         )
         return jsonify(predictions)
     except:
+        print("get_topic_predictions(): computing a new prediction")
         load_articles = LoadArticles()
         all_articles_df = load_articles.load_articles(start_date, end_date, True)
         if len(all_articles_df) > 0:
@@ -63,17 +67,46 @@ def get_topics_overview():
             )
             return jsonify(predictions)
         else:
-            raise Exception('something went wrong')
+            raise Exception('not enough articles in database for these parameters')
 
 
+@app.route('/get_baseline_model_data', methods=['GET'])
+@cross_origin(origins=['http://localhost:8080'], methods=['GET'])
+def get_baseline_model_data():
+    with open('./modeling_results/baseline_model_data_2023-10-24.json', 'r') as json_file:
+        data = json.load(json_file)
+    return jsonify(data)
 
-# THIS IS PROBABLY NOT NECESSARY SINCE DATA CAN BE PASSED AS A PROP IN THE FRONTEND FROM get_topics_overview()
-# @app.route('/get_topic', methods=['GET'])
-# def get_topic():
-#     # call this when a user clicks on a given topic from a topic overview
-#     # -> needs to know the model and the topic_id
-#     start_date = request.args.get('start_date')
-#     end_date = request.args.get('end_date')
-#     sources = request.args.get('sources')
 
-#     pass
+@app.route('/get_articles', methods=['POST'])
+@cross_origin(origins=['http://localhost:8080'], methods=['POST'])
+def get_articles():
+    result = []
+    load_articles = LoadArticles()
+    data = request.get_json()
+    consolidated_dict = {}
+    for key, value in data:
+        if key in consolidated_dict:
+            consolidated_dict[key].append(value)
+        else:
+            consolidated_dict[key] = [value]
+    for key, value in consolidated_dict.items():
+        articles = load_articles.get_articles_for_ids(f'{key}_articles', value)
+        result.extend(articles)
+    list_of_dicts = [{
+        'id': item[0],
+        'medium': item[1],
+        'datetime_saved': datetime.datetime.strftime(item[2], '%Y-%m-%d'),
+        'date_published': datetime.datetime.strftime(item[3], '%Y-%m-%d'),
+        'url': item[4],
+        'headline': item[5],
+        'kicker': item[6],
+        'teaser': item[7],
+        'body': item[8],
+        'subheadlines': item[9],
+        'paywall': item[10],
+        'author': item[11],
+        'code': item[12],
+        'archive_url': item[13]
+    } for item in result]
+    return jsonify(list_of_dicts)

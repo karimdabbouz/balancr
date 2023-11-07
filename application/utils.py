@@ -320,5 +320,3 @@ def load_predictions(baseline_model, start_date, end_date, keep_kicker, keep_hea
             result = json.loads(blob.download_as_text())
             return result
     raise Exception('no predictions with these parameters')
-
-
